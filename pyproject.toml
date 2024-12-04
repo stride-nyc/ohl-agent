@@ -16,7 +16,7 @@ dependencies = [
     "langchain-fireworks>=0.1.7",
     "python-dotenv>=1.0.1",
     "langchain-community>=0.2.17",
-    "tavily-python>=0.4.0",
+    "mcp>=0.1.0",  # Added MCP dependency
 ]
 
 

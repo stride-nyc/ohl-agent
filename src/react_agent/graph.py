@@ -5,6 +5,7 @@ Works with a chat model with tool calling support.
 
 from datetime import datetime, timezone
 from typing import Dict, List, Literal, cast
+import asyncio
 
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
@@ -13,10 +14,13 @@ from langgraph.prebuilt import ToolNode
 
 from react_agent.configuration import Configuration
 from react_agent.state import InputState, State
-from react_agent.tools import TOOLS
+from react_agent.tools import TOOLS, initialize_tools
 from react_agent.utils import load_chat_model
 
-# Define the function that calls the model
+
+# Initialize MCP tools when module is loaded
+config = Configuration.load_from_langgraph_json()  # Load from langgraph.json
+TOOLS.extend(asyncio.run(initialize_tools(config)))
 
 
 async def call_model(
@@ -67,7 +71,6 @@ async def call_model(
 
 
 # Define a new graph
-
 builder = StateGraph(State, input=InputState, config_schema=Configuration)
 
 # Define the two nodes we will cycle between
@@ -115,7 +118,6 @@ builder.add_conditional_edges(
 builder.add_edge("tools", "call_model")
 
 # Compile the builder into an executable graph
-# You can customize this by adding interrupt points for state updates
 graph = builder.compile(
     interrupt_before=[],  # Add node names here to update state before they're called
     interrupt_after=[],  # Add node names here to update state after they're called

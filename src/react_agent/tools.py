@@ -1,34 +1,42 @@
-"""This module provides example tools for web scraping and search functionality.
+"""This module provides tools for the ReAct Agent using MCP servers.
 
-It includes a basic Tavily search function (as an example)
-
-These tools are intended as free examples to get started. For production use,
-consider implementing more robust and specialized tools tailored to your needs.
+Tools are dynamically loaded from configured MCP servers at startup.
 """
 
-from typing import Any, Callable, List, Optional, cast
-
-from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-from typing_extensions import Annotated
+from typing import Any, Callable, List, Optional
+import asyncio
 
 from react_agent.configuration import Configuration
+from react_agent.mcp_client import MCPClientManager
 
 
-async def search(
-    query: str, *, config: Annotated[RunnableConfig, InjectedToolArg]
-) -> Optional[list[dict[str, Any]]]:
-    """Search for general web results.
+# Global MCP client manager
+_mcp_manager: Optional[MCPClientManager] = None
 
-    This function performs a search using the Tavily search engine, which is designed
-    to provide comprehensive, accurate, and trusted results. It's particularly useful
-    for answering questions about current events.
+
+async def initialize_tools(config: Configuration) -> List[Callable[..., Any]]:
+    """Initialize MCP servers and return available tools.
+    
+    This should be called during application startup.
     """
-    configuration = Configuration.from_runnable_config(config)
-    wrapped = TavilySearchResults(max_results=configuration.max_search_results)
-    result = await wrapped.ainvoke({"query": query})
-    return cast(list[dict[str, Any]], result)
+    global _mcp_manager
+    
+    _mcp_manager = MCPClientManager()
+    await _mcp_manager.start_all_servers(config)
+    
+    return _mcp_manager.get_all_tools()
 
 
-TOOLS: List[Callable[..., Any]] = [search]
+async def cleanup_tools() -> None:
+    """Cleanup MCP servers and tools.
+    
+    This should be called during application shutdown.
+    """
+    global _mcp_manager
+    if _mcp_manager:
+        await _mcp_manager.shutdown()
+        _mcp_manager = None
+
+
+# Initial empty tools list - will be populated during startup
+TOOLS: List[Callable[..., Any]] = []
