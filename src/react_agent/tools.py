@@ -9,7 +9,7 @@ import json
 import logging
 from typing import Any, Callable, Dict, List, Optional, Set, Type
 
-from langchain_core.tools import BaseTool, Tool
+from langchain_core.tools import BaseTool, Tool, StructuredTool
 from pydantic import BaseModel, create_model
 
 from react_agent import mcp_client
@@ -88,14 +88,26 @@ def _create_tool_wrapper(tool_def: Dict[str, Any]) -> BaseTool:
     # Create Pydantic model for schema validation
     args_schema = create_schema_model(tool_def)
     
-    # Create a LangChain Tool with the wrapper and schema
-    tool = Tool(
-        name=tool_def["name"],
-        description=tool_def.get("description", ""),
-        func=wrapper,
-        coroutine=wrapper,
-        args_schema=args_schema
-    )
+    # Check if we need a structured tool (multiple parameters) or simple tool
+    schema = get_schema(tool_def)
+    if schema and len(schema.get("properties", {})) > 1:
+        # Use StructuredTool for multiple parameters
+        tool = StructuredTool(
+            name=tool_def["name"],
+            description=tool_def.get("description", ""),
+            func=wrapper,
+            coroutine=wrapper,
+            args_schema=args_schema
+        )
+    else:
+        # Use regular Tool for single or no parameters
+        tool = Tool(
+            name=tool_def["name"],
+            description=tool_def.get("description", ""),
+            func=wrapper,
+            coroutine=wrapper,
+            args_schema=args_schema
+        )
     
     logger.info(f"Created tool: {tool}")
     return tool
