@@ -1,100 +1,138 @@
-"""MCP client management for ReAct Agent."""
+"""MCP client for ReAct Agent.
 
-from __future__ import annotations
+This module handles communication with the MCP gateway server.
+"""
 
-import asyncio
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Any, Callable, Awaitable
+import json
+import logging
+from typing import Any, Dict, List, Optional
 
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from mcp.types import Tool
+import httpx
 
-from react_agent.configuration import Configuration, MCPServerConfig
-
-
-@dataclass
-class MCPServer:
-    """Represents a running MCP server and its capabilities."""
-    name: str
-    config: MCPServerConfig
-    session: ClientSession
-    tools: List[Tool]
-    process: asyncio.subprocess.Process
+logger = logging.getLogger(__name__)
 
 
-class MCPClientManager:
-    """Manages MCP server processes and client sessions."""
+class MCPGatewayClient:
+    """Client for communicating with the MCP gateway server."""
     
-    def __init__(self):
-        self.servers: Dict[str, MCPServer] = {}
+    def __init__(self, gateway_url: str = "http://localhost:8808"):
+        """Initialize the client.
         
-    async def start_server(self, name: str, config: MCPServerConfig) -> MCPServer:
-        """Start an MCP server and initialize its client session."""
-        # Create server parameters
-        server_params = StdioServerParameters(
-            command=config.command,
-            args=config.args
+        Args:
+            gateway_url: URL of the MCP gateway server
+        """
+        self.gateway_url = gateway_url
+        self.client = httpx.Client()
+        self._tools: Optional[List[Dict[str, Any]]] = None
+    
+    def _send_request(self, method: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """Send a request to the gateway server.
+        
+        Args:
+            method: The method to call (e.g., "tools/list", "tools/call")
+            params: Optional parameters for the method
+            
+        Returns:
+            The response from the server
+            
+        Raises:
+            Exception: If the request fails
+        """
+        request = {
+            "method": method,
+            "params": params or {}
+        }
+        
+        response = self.client.post(
+            f"{self.gateway_url}/message",
+            json=request,
+            headers={"Content-Type": "application/json"}
         )
         
-        # Start the server process and create client session
-        async with stdio_client(server_params) as (read, write):
-            session = ClientSession(read, write)
-            await session.initialize()
+        if response.status_code != 200:
+            raise Exception(f"Request failed with status {response.status_code}: {response.text}")
             
-            # Query available tools
-            tools = await session.list_tools()
-            
-            # Store server info
-            server = MCPServer(
-                name=name,
-                config=config,
-                session=session,
-                tools=tools,
-                process=server_params.process
-            )
-            self.servers[name] = server
-            return server
+        return response.json()
     
-    async def start_all_servers(self, config: Configuration) -> None:
-        """Start all configured MCP servers."""
-        for name, server_config in config.mcp_servers.items():
-            await self.start_server(name, server_config)
-    
-    def create_tool_wrapper(
-        self,
-        server: MCPServer,
-        tool: Tool
-    ) -> Callable[..., Awaitable[Any]]:
-        """Create a wrapper function for an MCP tool that can be used by the agent."""
+    def list_tools(self) -> List[Dict[str, Any]]:
+        """Get list of available tools from the gateway.
         
-        async def wrapper(**kwargs) -> Any:
-            """Wrapper function that calls the MCP tool."""
-            result = await server.session.call_tool(
-                tool.name,
-                arguments=kwargs
-            )
-            return result
-            
-        # Set metadata on wrapper function
-        wrapper.__name__ = f"{server.name}_{tool.name}"
-        wrapper.__doc__ = tool.description
+        Returns:
+            List of tool definitions
+        """
+        if self._tools is None:
+            response = self._send_request("tools/list")
+            self._tools = response.get("tools", [])
+        return self._tools
+    
+    def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
+        """Call a tool through the gateway.
         
-        return wrapper
+        Args:
+            name: Name of the tool to call
+            arguments: Arguments to pass to the tool
+            
+        Returns:
+            The tool's response
+            
+        Raises:
+            Exception: If the tool call fails
+        """
+        response = self._send_request(
+            "tools/call",
+            {
+                "name": name,
+                "arguments": arguments
+            }
+        )
+        
+        # Extract text content from response
+        if isinstance(response, dict):
+            content = response.get("content", [])
+            if content and isinstance(content, list):
+                first_content = content[0]
+                if isinstance(first_content, dict) and first_content.get("type") == "text":
+                    return first_content.get("text")
+        
+        return response
+
+
+# Global client instance
+_client: Optional[MCPGatewayClient] = None
+
+
+def get_client(gateway_url: Optional[str] = None) -> MCPGatewayClient:
+    """Get or create the global client instance.
     
-    def get_all_tools(self) -> List[Callable[..., Any]]:
-        """Get all available tools from all servers."""
-        tools = []
-        for server in self.servers.values():
-            for tool in server.tools:
-                wrapper = self.create_tool_wrapper(server, tool)
-                tools.append(wrapper)
-        return tools
+    Args:
+        gateway_url: Optional URL for the gateway server
+        
+    Returns:
+        The global client instance
+    """
+    global _client
+    if _client is None:
+        _client = MCPGatewayClient(gateway_url or "http://localhost:8808")
+    return _client
+
+
+def list_tools() -> List[Dict[str, Any]]:
+    """Get list of available tools.
     
-    async def shutdown(self) -> None:
-        """Shutdown all MCP servers."""
-        for server in self.servers.values():
-            if server.process:
-                server.process.terminate()
-                await server.process.wait()
-        self.servers.clear()
+    Returns:
+        List of tool definitions
+    """
+    return get_client().list_tools()
+
+
+def call_tool(name: str, arguments: Dict[str, Any]) -> Any:
+    """Call a tool through the gateway.
+    
+    Args:
+        name: Name of the tool to call
+        arguments: Arguments to pass to the tool
+        
+    Returns:
+        The tool's response
+    """
+    return get_client().call_tool(name, arguments)

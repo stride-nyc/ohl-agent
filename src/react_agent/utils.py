@@ -1,27 +1,61 @@
-"""Utility & helper functions."""
+"""Utility functions for the ReAct agent."""
 
-from langchain.chat_models import init_chat_model
-from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage
+import logging
+import os
+from typing import Any
 
+from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 
-def get_message_text(msg: BaseMessage) -> str:
-    """Get the text content of a message."""
-    content = msg.content
-    if isinstance(content, str):
-        return content
-    elif isinstance(content, dict):
-        return content.get("text", "")
-    else:
-        txts = [c if isinstance(c, str) else (c.get("text") or "") for c in content]
-        return "".join(txts).strip()
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-
-def load_chat_model(fully_specified_name: str) -> BaseChatModel:
-    """Load a chat model from a fully specified name.
+def load_chat_model(model_name: str, openrouter_base_url: str | None = None) -> Any:
+    """Load a chat model based on the provider prefix.
 
     Args:
-        fully_specified_name (str): String in the format 'provider/model'.
+        model_name: Name of the model in format "provider/model-name"
+        openrouter_base_url: Base URL for OpenRouter API if using OpenRouter
+
+    Returns:
+        A chat model instance
+
+    Raises:
+        ValueError: If the provider is not supported
     """
-    provider, model = fully_specified_name.split("/", maxsplit=1)
-    return init_chat_model(model, model_provider=provider)
+    logger.info(f"Loading chat model with name: {model_name}")
+    provider, *model_parts = model_name.split("/")
+    model = "/".join(model_parts)
+    
+    logger.info(f"Parsed provider: {provider}")
+    logger.info(f"Parsed model: {model}")
+    
+    if provider == "anthropic":
+        logger.info("Using Anthropic client")
+        return ChatAnthropic(model=model)
+    elif provider == "openai":
+        logger.info("Using OpenAI client")
+        return ChatOpenAI(model=model)
+    elif provider == "openrouter":
+        logger.info("Using OpenRouter via OpenAI client")
+        logger.info(f"OpenRouter base URL: {openrouter_base_url}")
+        
+        if not openrouter_base_url:
+            raise ValueError("openrouter_base_url is required for OpenRouter models")
+            
+        # For OpenRouter, we pass just the model part without the openrouter prefix
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        logger.info(f"OpenRouter API key present: {bool(api_key)}")
+        logger.info(f"Using model identifier: {model}")
+        
+        return ChatOpenAI(
+            openai_api_key=api_key,
+            openai_api_base=openrouter_base_url,
+            model=model,  # Use just the model part (e.g., "anthropic/claude-3-5-sonnet-20241022")
+        )
+    else:
+        raise ValueError(
+            f"Unsupported provider: {provider}. "
+            "Must be one of: anthropic, openai, openrouter"
+        )

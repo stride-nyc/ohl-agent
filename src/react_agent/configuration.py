@@ -5,23 +5,11 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field, fields
-from typing import Annotated, Optional, Dict, List
+from typing import Annotated, Optional
 
 from langchain_core.runnables import RunnableConfig, ensure_config
 
 from react_agent import prompts
-
-
-class ConfigurationError(Exception):
-    """Raised when there is an error in the configuration."""
-    pass
-
-
-@dataclass
-class MCPServerConfig:
-    """Configuration for an MCP server."""
-    command: str
-    args: List[str]
 
 
 @dataclass(kw_only=True)
@@ -37,24 +25,24 @@ class Configuration:
     )
 
     model: Annotated[str, {"__template_metadata__": {"kind": "llm"}}] = field(
-        default="anthropic/claude-3-5-sonnet-20240620",
+        default=os.getenv("LLM_MODEL", "anthropic/claude-3-5-sonnet-20240620"),
         metadata={
             "description": "The name of the language model to use for the agent's main interactions. "
             "Should be in the form: provider/model-name."
         },
     )
 
-    max_search_results: int = field(
-        default=10,
+    openrouter_base_url: str = field(
+        default=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
         metadata={
-            "description": "The maximum number of search results to return for each search query."
+            "description": "Base URL for OpenRouter API when using OpenRouter models."
         },
     )
 
-    mcp_servers: Dict[str, MCPServerConfig] = field(
-        default_factory=dict,
+    mcp_gateway_url: str = field(
+        default="http://localhost:8808",
         metadata={
-            "description": "Configuration for MCP servers that provide tools and capabilities."
+            "description": "URL of the MCP gateway server that provides tools."
         },
     )
 
@@ -66,15 +54,6 @@ class Configuration:
         config = ensure_config(config)
         configurable = config.get("configurable") or {}
         _fields = {f.name for f in fields(cls) if f.init}
-        
-        # Handle MCP server configs if present
-        if "mcp_servers" in configurable:
-            raw_servers = configurable["mcp_servers"]
-            configurable["mcp_servers"] = {
-                name: MCPServerConfig(**cfg)
-                for name, cfg in raw_servers.items()
-            }
-        
         return cls(**{k: v for k, v in configurable.items() if k in _fields})
 
     @classmethod
@@ -97,18 +76,8 @@ class Configuration:
         # Create configuration instance
         config = cls()
 
-        # Load MCP server configurations if present
-        if 'mcp' in config_data and 'servers' in config_data['mcp']:
-            config.mcp_servers = {
-                name: MCPServerConfig(**server_config)
-                for name, server_config in config_data['mcp']['servers'].items()
-            }
-
-        # Validate MCP servers are configured
-        if not config.mcp_servers:
-            raise ConfigurationError(
-                "No MCP servers defined in langgraph.json. "
-                "At least one MCP server must be configured to provide tools for the ReAct agent."
-            )
+        # Load MCP gateway URL if present
+        if 'mcp' in config_data:
+            config.mcp_gateway_url = config_data['mcp'].get('gateway_url', config.mcp_gateway_url)
 
         return config
