@@ -13,6 +13,7 @@ import os
 import logging
 import signal
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 from fastapi import FastAPI, Request
@@ -24,6 +25,10 @@ logging.basicConfig(level=logging.DEBUG)  # Set to DEBUG for more verbose output
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+# Get the directory containing this file
+GATEWAY_DIR = Path(__file__).parent.parent.parent
+DEFAULT_CONFIG = GATEWAY_DIR / "config.json"
 
 
 @dataclass
@@ -198,7 +203,11 @@ class Gateway:
         for server in self.servers.values():
             if any(t["name"] == tool_name for t in server.tools):
                 try:
-                    return await self._communicate_with_server(
+                    # Log the tool call
+                    logger.info(f"Calling tool {tool_name} on server {server.name}")
+                    logger.info(f"Arguments: {json.dumps(arguments, indent=2)}")
+                    
+                    result = await self._communicate_with_server(
                         server,
                         "tools/call",
                         {
@@ -206,6 +215,11 @@ class Gateway:
                             "arguments": arguments
                         }
                     )
+                    
+                    # Log the result
+                    logger.info(f"Tool call result: {json.dumps(result, indent=2)}")
+                    
+                    return result
                 except Exception as e:
                     logger.error(f"Error calling tool {tool_name}: {str(e)}")
                     raise
@@ -235,8 +249,9 @@ gateway = Gateway()
 @app.on_event("startup")
 async def startup():
     """Initialize the gateway on startup."""
-    config_path = os.environ.get("MCP_CONFIG", "langgraph.json")
-    logger.info("Starting MCP Gateway Server")
+    # Use config.json from the gateway directory by default
+    config_path = os.environ.get("MCP_CONFIG", str(DEFAULT_CONFIG))
+    logger.info(f"Starting MCP Gateway Server with config: {config_path}")
     await gateway.start_all_servers(config_path)
 
 
@@ -252,21 +267,24 @@ async def message_endpoint(request: Request):
     """Handle incoming messages from clients."""
     try:
         msg = await request.json()
-        logger.debug(f"Received message: {msg}")
+        logger.info(f"Received message: {json.dumps(msg, indent=2)}")
         
         if msg.get("method") == "tools/list":
             tools = await gateway.list_all_tools()
             response = {"tools": tools}
-            logger.debug(f"Returning tools: {response}")
+            logger.info(f"Returning tools: {json.dumps(response, indent=2)}")
             return JSONResponse(response)
         
         elif msg.get("method") == "tools/call":
             params = msg.get("params", {})
+            # Log the tool call parameters
+            logger.info(f"Tool call parameters: {json.dumps(params, indent=2)}")
+            
             result = await gateway.call_tool(
                 params.get("name"),
                 params.get("arguments", {})
             )
-            logger.debug(f"Tool call result: {result}")
+            logger.info(f"Tool call result: {json.dumps(result, indent=2)}")
             return JSONResponse(result)
         
         return JSONResponse({"error": "Unknown method"}, status_code=400)

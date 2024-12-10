@@ -43,6 +43,9 @@ class MCPGatewayClient:
             "params": params or {}
         }
         
+        # Log the request being sent
+        logger.info(f"Sending request to gateway: {json.dumps(request, indent=2)}")
+        
         response = self.client.post(
             f"{self.gateway_url}/message",
             json=request,
@@ -78,13 +81,32 @@ class MCPGatewayClient:
         Raises:
             Exception: If the tool call fails
         """
-        response = self._send_request(
-            "tools/call",
-            {
-                "name": name,
-                "arguments": arguments
-            }
-        )
+        # Log the incoming arguments
+        logger.info(f"call_tool received arguments: {json.dumps(arguments, indent=2)}")
+        
+        # If arguments is a string, try to parse it as JSON
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+                logger.info(f"Parsed string arguments into: {json.dumps(arguments, indent=2)}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse arguments string: {e}")
+                raise
+        
+        # Ensure arguments is a dictionary
+        if not isinstance(arguments, dict):
+            logger.error(f"Arguments must be a dictionary, got {type(arguments)}")
+            raise TypeError("Arguments must be a dictionary")
+        
+        params = {
+            "name": name,
+            "arguments": arguments
+        }
+        
+        # Log the actual parameters being sent
+        logger.info(f"Sending parameters to gateway: {json.dumps(params, indent=2)}")
+        
+        response = self._send_request("tools/call", params)
         
         # Extract text content from response
         if isinstance(response, dict):
