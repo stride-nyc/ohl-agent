@@ -13,7 +13,6 @@ import os
 import logging
 import signal
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 from fastapi import FastAPI, Request
@@ -21,14 +20,10 @@ from fastapi.responses import JSONResponse
 from mcp.types import Tool
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)  # Set to DEBUG for more verbose output
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
-
-# Get the directory containing this file
-GATEWAY_DIR = Path(__file__).parent.parent.parent
-DEFAULT_CONFIG = GATEWAY_DIR / "config.json"
 
 
 @dataclass
@@ -45,6 +40,17 @@ class MCPServer:
     config: MCPServerConfig
     process: asyncio.subprocess.Process
     tools: List[Dict] = field(default_factory=list)
+
+
+def get_schema(tool: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Get the input schema from a tool definition, handling both naming conventions."""
+    # Try both input_schema and inputSchema
+    schema = tool.get("input_schema") or tool.get("inputSchema")
+    if schema:
+        logger.info(f"Found schema for tool {tool['name']}: {json.dumps(schema, indent=2)}")
+    else:
+        logger.info(f"No schema found for tool {tool['name']}")
+    return schema
 
 
 class Gateway:
@@ -67,7 +73,7 @@ class Gateway:
                 "id": 1
             }
             request_str = json.dumps(request) + "\n"
-            logger.debug(f"Sending request to {server.name}: {request_str.strip()}")
+            logger.info(f"Sending request to {server.name}: {request_str.strip()}")
             
             # Send request
             server.process.stdin.write(request_str.encode())
@@ -79,7 +85,7 @@ class Gateway:
                 raise Exception("Empty response")
                 
             response_str = response_line.decode().strip()
-            logger.debug(f"Received response from {server.name}: {response_str}")
+            logger.info(f"Received response from {server.name}: {response_str}")
             
             response = json.loads(response_str)
             if "error" in response:
@@ -95,10 +101,11 @@ class Gateway:
         """Start an MCP server and initialize its client session."""
         try:
             logger.info(f"Starting MCP server: {name}")
+            logger.info(f"Server config: command={config.command}, args={config.args}")
             
             # Construct command
             cmd = f"{config.command} {' '.join(config.args)}"
-            logger.debug(f"Running command: {cmd}")
+            logger.info(f"Running command: {cmd}")
             
             # Start the server process in the background
             process = await asyncio.create_subprocess_shell(
@@ -121,9 +128,17 @@ class Gateway:
             
             # Query available tools
             try:
+                logger.info(f"Querying tools from {name}")
                 result = await self._communicate_with_server(server, "tools/list")
                 server.tools = result.get("tools", [])
+                logger.info(f"Server {name} tools response: {json.dumps(result, indent=2)}")
                 logger.info(f"Server {name} provides tools: {[t['name'] for t in server.tools]}")
+                for tool in server.tools:
+                    logger.info(f"Tool details for {tool['name']}:")
+                    logger.info(f"  Description: {tool.get('description', 'No description')}")
+                    schema = get_schema(tool)
+                    if schema:
+                        logger.info(f"  Schema: {json.dumps(schema, indent=2)}")
             except Exception as e:
                 logger.error(f"Error querying tools from {name}: {str(e)}")
                 server.tools = []
@@ -146,7 +161,7 @@ class Gateway:
                 try:
                     line = await server.process.stderr.readline()
                     if line:
-                        logger.debug(f"[{server.name}] {line.decode().strip()}")
+                        logger.info(f"[{server.name}] {line.decode().strip()}")
                     else:
                         break
                 except Exception as e:
@@ -160,6 +175,7 @@ class Gateway:
             # Read config file
             with open(config_path) as f:
                 config = json.load(f)
+            logger.info(f"Loaded config: {json.dumps(config, indent=2)}")
             
             if not config.get('mcp', {}).get('servers'):
                 raise ValueError("No MCP servers configured in config file")
@@ -167,6 +183,7 @@ class Gateway:
             # Start each configured server in parallel
             tasks = []
             for name, server_config in config['mcp']['servers'].items():
+                logger.info(f"Creating start task for server: {name}")
                 task = asyncio.create_task(
                     self.start_server(
                         name,
@@ -176,7 +193,9 @@ class Gateway:
                 tasks.append(task)
             
             # Wait for all servers to start
+            logger.info("Waiting for all servers to start")
             await asyncio.gather(*tasks, return_exceptions=True)
+            logger.info("All servers started")
             
         except Exception as e:
             logger.error(f"Error starting servers: {str(e)}")
@@ -192,9 +211,11 @@ class Gateway:
                     "description": tool.get("description", ""),
                     "server": server.name
                 }
-                if "input_schema" in tool:
-                    tool_dict["input_schema"] = tool["input_schema"]
+                schema = get_schema(tool)
+                if schema:
+                    tool_dict["input_schema"] = schema
                 tools.append(tool_dict)
+        logger.info(f"All available tools: {json.dumps(tools, indent=2)}")
         return tools
     
     async def call_tool(self, tool_name: str, arguments: dict) -> Any:
@@ -203,9 +224,8 @@ class Gateway:
         for server in self.servers.values():
             if any(t["name"] == tool_name for t in server.tools):
                 try:
-                    # Log the tool call
                     logger.info(f"Calling tool {tool_name} on server {server.name}")
-                    logger.info(f"Arguments: {json.dumps(arguments, indent=2)}")
+                    logger.info(f"Tool arguments: {json.dumps(arguments, indent=2)}")
                     
                     result = await self._communicate_with_server(
                         server,
@@ -216,9 +236,7 @@ class Gateway:
                         }
                     )
                     
-                    # Log the result
                     logger.info(f"Tool call result: {json.dumps(result, indent=2)}")
-                    
                     return result
                 except Exception as e:
                     logger.error(f"Error calling tool {tool_name}: {str(e)}")
@@ -249,9 +267,8 @@ gateway = Gateway()
 @app.on_event("startup")
 async def startup():
     """Initialize the gateway on startup."""
-    # Use config.json from the gateway directory by default
-    config_path = os.environ.get("MCP_CONFIG", str(DEFAULT_CONFIG))
-    logger.info(f"Starting MCP Gateway Server with config: {config_path}")
+    config_path = os.environ.get("MCP_CONFIG", "config.json")
+    logger.info("Starting MCP Gateway Server")
     await gateway.start_all_servers(config_path)
 
 
@@ -277,7 +294,6 @@ async def message_endpoint(request: Request):
         
         elif msg.get("method") == "tools/call":
             params = msg.get("params", {})
-            # Log the tool call parameters
             logger.info(f"Tool call parameters: {json.dumps(params, indent=2)}")
             
             result = await gateway.call_tool(
