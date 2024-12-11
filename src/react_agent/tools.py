@@ -121,10 +121,17 @@ def _load_tools() -> List[BaseTool]:
     """
     logger.info("Loading tools from gateway")
     tools = []
+    tool_names = []
     for tool_def in mcp_client.list_tools():
         logger.info(f"Loading tool: {tool_def['name']}")
+        if tool_def['name'] in tool_names:
+            continue
+
+        tool_names.append(tool_def['name'])
         tool = _create_tool_wrapper(tool_def)
         tools.append(tool)
+
+    logger.info(tool_names)
     return tools
 
 
@@ -153,6 +160,6 @@ async def initialize_tools(config) -> List[BaseTool]:
     
     # Load tools from gateway
     TOOLS = _load_tools()
-    
+
     logger.info(f"Initialized {len(TOOLS)} tools")
     return TOOLS

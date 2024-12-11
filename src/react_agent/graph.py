@@ -20,8 +20,7 @@ from react_agent.utils import load_chat_model
 
 # Initialize MCP tools when module is loaded
 config = Configuration.load_from_langgraph_json()  # Load from langgraph.json
-TOOLS.extend(asyncio.run(initialize_tools(config)))
-
+asyncio.run(initialize_tools(config))
 
 async def call_model(
     state: State, config: RunnableConfig
