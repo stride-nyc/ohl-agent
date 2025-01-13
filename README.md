@@ -99,8 +99,10 @@ The agent's connection to the gateway is configured in `langgraph.json`:
 
 ### 5. Use the Agent
 
-Open the folder in LangGraph Studio! The agent will automatically:
-1. Connect to the gateway server
+Open your app in LangGraph!  Install guide [here](https://langchain-ai.github.io/langgraph/tutorials/langgraph-platform/local-server/#launch-langgraph-server).  
+
+This will open a new browser window with the agent running.  The agent will automatically:
+1. Connect to the local gateway server
 2. Discover available tools
 3. Make tools available for use in conversations
 
