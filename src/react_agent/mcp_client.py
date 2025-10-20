@@ -22,10 +22,10 @@ class MCPGatewayClient:
             gateway_url: URL of the MCP gateway server
         """
         self.gateway_url = gateway_url
-        self.client = httpx.Client()
+        self.client = httpx.AsyncClient()
         self._tools: Optional[List[Dict[str, Any]]] = None
     
-    def _send_request(self, method: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    async def _send_request(self, method: str, params: Optional[Dict[str, Any]] = None) -> Any:
         """Send a request to the gateway server.
         
         Args:
@@ -46,7 +46,7 @@ class MCPGatewayClient:
         # Log the request being sent
         logger.info(f"Sending request to gateway: {json.dumps(request, indent=2)}")
         
-        response = self.client.post(
+        response = await self.client.post(
             f"{self.gateway_url}/message",
             json=request,
             headers={"Content-Type": "application/json"}
@@ -57,18 +57,18 @@ class MCPGatewayClient:
             
         return response.json()
     
-    def list_tools(self) -> List[Dict[str, Any]]:
+    async def list_tools(self) -> List[Dict[str, Any]]:
         """Get list of available tools from the gateway.
         
         Returns:
             List of tool definitions
         """
         if self._tools is None:
-            response = self._send_request("tools/list")
+            response = await self._send_request("tools/list")
             self._tools = response.get("tools", [])
         return self._tools
     
-    def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
+    async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
         """Call a tool through the gateway.
         
         Args:
@@ -106,7 +106,7 @@ class MCPGatewayClient:
         # Log the actual parameters being sent
         logger.info(f"Sending parameters to gateway: {json.dumps(params, indent=2)}")
         
-        response = self._send_request("tools/call", params)
+        response = await self._send_request("tools/call", params)
         
         # Extract text content from response
         if isinstance(response, dict):
@@ -138,16 +138,16 @@ def get_client(gateway_url: Optional[str] = None) -> MCPGatewayClient:
     return _client
 
 
-def list_tools() -> List[Dict[str, Any]]:
+async def list_tools() -> List[Dict[str, Any]]:
     """Get list of available tools.
     
     Returns:
         List of tool definitions
     """
-    return get_client().list_tools()
+    return await get_client().list_tools()
 
 
-def call_tool(name: str, arguments: Dict[str, Any]) -> Any:
+async def call_tool(name: str, arguments: Dict[str, Any]) -> Any:
     """Call a tool through the gateway.
     
     Args:
@@ -157,4 +157,4 @@ def call_tool(name: str, arguments: Dict[str, Any]) -> Any:
     Returns:
         The tool's response
     """
-    return get_client().call_tool(name, arguments)
+    return await get_client().call_tool(name, arguments)

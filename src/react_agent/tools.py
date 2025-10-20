@@ -86,7 +86,7 @@ def _create_tool_wrapper(tool_def: Dict[str, Any]) -> BaseTool:
                 logger.info(f"Merged dict arg with kwargs: {args[0]}")
         
         logger.info(f"Tool wrapper calling with kwargs: {kwargs}")
-        result = mcp_client.call_tool(tool_def["name"], kwargs)
+        result = await mcp_client.call_tool(tool_def["name"], kwargs)
         return result
     
     # Create Pydantic model for schema validation
@@ -259,7 +259,7 @@ def add_accessed_document(
     )
 
 
-def _load_tools() -> List[BaseTool]:
+async def _load_tools() -> List[BaseTool]:
     """Load all available tools from the MCP gateway.
     
     Returns:
@@ -268,7 +268,7 @@ def _load_tools() -> List[BaseTool]:
     logger.info("Loading tools from gateway")
     tools = []
     tool_names = []
-    for tool_def in mcp_client.list_tools():
+    for tool_def in await mcp_client.list_tools():
         logger.info(f"Loading tool: {tool_def['name']}")
         if tool_def['name'] in tool_names:
             continue
@@ -313,7 +313,7 @@ async def initialize_tools(config) -> List[BaseTool]:
         mcp_client.get_client(config.mcp_gateway_url)
     
     # Load MCP tools from gateway
-    mcp_tools = _load_tools()
+    mcp_tools = await _load_tools()
     
     # Merge local and MCP tools
     TOOLS = local_tools + mcp_tools
