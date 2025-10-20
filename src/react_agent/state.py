@@ -3,58 +3,67 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Sequence
+from typing import List, Optional
+from enum import Enum
 
-from langchain_core.messages import AnyMessage
-from langgraph.graph import add_messages
-from langgraph.managed import IsLastStep
-from typing_extensions import Annotated
+from langgraph.graph import MessagesState
+
+
+class MessageRole(str, Enum):
+    """Roles in the conversation."""
+    MEMBER = "member"
+    SYSTEM = "system"
+    AGENT = "agent"
 
 
 @dataclass
-class InputState:
-    """Defines the input state for the agent, representing a narrower interface to the outside world.
+class ConversationMessage:
+    """A single message in the member-system conversation."""
+    role: MessageRole
+    content: str
+    timestamp: Optional[str] = None
+    
 
-    This class is used to define the initial state and structure of incoming data.
+@dataclass
+class EscalationContext:
+    """Context about why this conversation is being escalated."""
+    reason: Optional[str] = None
+    urgency: Optional[str] = None  # low, medium, high
+    member_sentiment: Optional[str] = None  # frustrated, confused, satisfied, etc.
+
+
+@dataclass
+class ProposedResponse:
+    """The agent's proposed next message for the human agent."""
+    message: str
+    reasoning: str
+    suggested_tone: str  # empathetic, professional, apologetic, etc.
+    relevant_docs: List[str] = field(default_factory=list)
+    key_points: List[str] = field(default_factory=list)
+
+
+class InputState(MessagesState):
+    """Defines the input state for the agent, inheriting from MessagesState.
+    
+    This class represents the narrower interface to the outside world.
     """
-
-    messages: Annotated[Sequence[AnyMessage], add_messages] = field(
-        default_factory=list
+    
+    conversation_history: List[ConversationMessage] = field(
+        default_factory=list,
+        metadata={"description": "The conversation between member and automated system"}
     )
-    """
-    Messages tracking the primary execution state of the agent.
-
-    Typically accumulates a pattern of:
-    1. HumanMessage - user input
-    2. AIMessage with .tool_calls - agent picking tool(s) to use to collect information
-    3. ToolMessage(s) - the responses (or errors) from the executed tools
-    4. AIMessage without .tool_calls - agent responding in unstructured format to the user
-    5. HumanMessage - user responds with the next conversational turn
-
-    Steps 2-5 may repeat as needed.
-
-    The `add_messages` annotation ensures that new messages are merged with existing ones,
-    updating by ID to maintain an "append-only" state unless a message with the same ID is provided.
-    """
+    
+    escalation_context: Optional[EscalationContext] = None
 
 
-@dataclass
 class State(InputState):
-    """Represents the complete state of the agent, extending InputState with additional attributes.
-
-    This class can be used to store any information needed throughout the agent's lifecycle.
+    """Represents the complete state of the agent, extending InputState.
+    
+    This class stores all information needed throughout the agent's lifecycle.
     """
-
-    is_last_step: IsLastStep = field(default=False)
-    """
-    Indicates whether the current step is the last one before the graph raises an error.
-
-    This is a 'managed' variable, controlled by the state machine rather than user code.
-    It is set to 'True' when the step count reaches recursion_limit - 1.
-    """
-
-    # Additional attributes can be added here as needed.
-    # Common examples include:
-    # retrieved_documents: List[Document] = field(default_factory=list)
-    # extracted_entities: Dict[str, Any] = field(default_factory=dict)
-    # api_connections: Dict[str, Any] = field(default_factory=dict)
+    
+    # Output: Proposed response for the human agent
+    proposed_response: Optional[ProposedResponse] = None
+    
+    # Track which docs were accessed during reasoning
+    accessed_documents: List[str] = field(default_factory=list)

@@ -7,9 +7,13 @@ import asyncio
 import inspect
 import json
 import logging
-from typing import Any, Callable, Dict, List, Optional, Set, Type
+from typing import Any, Callable, Dict, List, Literal, Optional, Set, Type, Annotated
 
-from langchain_core.tools import BaseTool, Tool, StructuredTool
+from langchain_core.tools import BaseTool, Tool, StructuredTool, tool
+from langchain_core.tools.base import InjectedToolCallId
+from langchain_core.messages import ToolMessage
+from langgraph.prebuilt import InjectedState
+from langgraph.types import Command
 from pydantic import BaseModel, create_model
 
 from react_agent import mcp_client
@@ -113,6 +117,148 @@ def _create_tool_wrapper(tool_def: Dict[str, Any]) -> BaseTool:
     return tool
 
 
+# State management tools
+
+@tool
+def get_conversation_history(
+    tool_call_id: Annotated[str, InjectedToolCallId],
+    state: Annotated[Dict, InjectedState]
+) -> Command[Literal["call_model"]]:
+    """Get the current conversation history between member and automated system.
+    
+    Returns the conversation formatted for review.
+    """
+    history = state.get("conversation_history", [])
+    
+    if not history:
+        content = "No conversation history available."
+    else:
+        formatted = []
+        for msg in history:
+            role = msg.get("role", "unknown").upper()
+            content_text = msg.get("content", "")
+            timestamp = msg.get("timestamp", "")
+            time_str = f" [{timestamp}]" if timestamp else ""
+            formatted.append(f"{role}{time_str}: {content_text}")
+        content = "\n\n".join(formatted)
+    
+    return Command(
+        update={
+            "messages": [ToolMessage(
+                content=f"Conversation History:\n\n{content}",
+                tool_call_id=tool_call_id
+            )]
+        }
+    )
+
+
+@tool
+def get_escalation_context(
+    tool_call_id: Annotated[str, InjectedToolCallId],
+    state: Annotated[Dict, InjectedState]
+) -> Command[Literal["call_model"]]:
+    """Get the escalation context including reason, urgency, and member sentiment.
+    
+    Returns information about why this conversation was escalated.
+    """
+    context = state.get("escalation_context")
+    
+    if not context:
+        content = "No escalation context available."
+    else:
+        content = f"""Escalation Context:
+- Reason: {context.get('reason', 'Not specified')}
+- Urgency: {context.get('urgency', 'Not specified')}
+- Member Sentiment: {context.get('member_sentiment', 'Not specified')}"""
+    
+    return Command(
+        update={
+            "messages": [ToolMessage(
+                content=content,
+                tool_call_id=tool_call_id
+            )]
+        }
+    )
+
+
+@tool
+def set_proposed_response(
+    message: str,
+    reasoning: str,
+    suggested_tone: str,
+    relevant_docs: Optional[str] = None,
+    key_points: Optional[str] = None,
+    tool_call_id: Annotated[str, InjectedToolCallId] = None,
+    state: Annotated[Dict, InjectedState] = None
+) -> Command[Literal["call_model"]]:
+    """Set the proposed response that the human agent should send to the member.
+    
+    Args:
+        message: The exact text the agent should send to the member
+        reasoning: Explanation of why this approach was chosen
+        suggested_tone: The tone to use (e.g., 'empathetic', 'professional', 'apologetic')
+        relevant_docs: Comma-separated list of documentation references (e.g., 'samples.md#apologies, faq.md#pharmacy')
+        key_points: Comma-separated list of key points to cover
+    
+    Returns:
+        Confirmation of the proposed response being set
+    """
+    # Parse comma-separated strings into lists
+    docs_list = [d.strip() for d in relevant_docs.split(",")] if relevant_docs else []
+    points_list = [p.strip() for p in key_points.split(",")] if key_points else []
+    
+    proposed_response = {
+        "message": message,
+        "reasoning": reasoning,
+        "suggested_tone": suggested_tone,
+        "relevant_docs": docs_list,
+        "key_points": points_list
+    }
+    
+    return Command(
+        update={
+            "proposed_response": proposed_response,
+            "messages": [ToolMessage(
+                content=f"Proposed response set successfully.\n\nMessage preview: {message[:100]}{'...' if len(message) > 100 else ''}\nTone: {suggested_tone}\nKey points: {len(points_list)}",
+                tool_call_id=tool_call_id
+            )]
+        }
+    )
+
+
+@tool
+def add_accessed_document(
+    doc_reference: str,
+    tool_call_id: Annotated[str, InjectedToolCallId],
+    state: Annotated[Dict, InjectedState]
+) -> Command[Literal["call_model"]]:
+    """Track that a documentation file was accessed during reasoning.
+    
+    Args:
+        doc_reference: Reference to the document (e.g., 'blueprint.md', 'faq.md#pharmacy')
+    
+    Returns:
+        Confirmation message
+    """
+    current_docs = state.get("accessed_documents", [])
+    
+    # Add if not already tracked
+    if doc_reference not in current_docs:
+        updated_docs = current_docs + [doc_reference]
+    else:
+        updated_docs = current_docs
+    
+    return Command(
+        update={
+            "accessed_documents": updated_docs,
+            "messages": [ToolMessage(
+                content=f"Tracked access to: {doc_reference}",
+                tool_call_id=tool_call_id
+            )]
+        }
+    )
+
+
 def _load_tools() -> List[BaseTool]:
     """Load all available tools from the MCP gateway.
     
@@ -154,12 +300,23 @@ async def initialize_tools(config) -> List[BaseTool]:
     
     logger.info("Initializing tools")
     
+    # Local state management tools
+    local_tools = [
+        get_conversation_history,
+        get_escalation_context,
+        set_proposed_response,
+        add_accessed_document
+    ]
+    
     # Configure MCP client with gateway URL from config
     if hasattr(config, "mcp_gateway_url"):
         mcp_client.get_client(config.mcp_gateway_url)
     
-    # Load tools from gateway
-    TOOLS = _load_tools()
+    # Load MCP tools from gateway
+    mcp_tools = _load_tools()
+    
+    # Merge local and MCP tools
+    TOOLS = local_tools + mcp_tools
 
-    logger.info(f"Initialized {len(TOOLS)} tools")
+    logger.info(f"Initialized {len(local_tools)} local tools and {len(mcp_tools)} MCP tools")
     return TOOLS

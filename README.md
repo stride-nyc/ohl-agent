@@ -1,31 +1,45 @@
-# LangGraph ReAct Agent with MCP
+# Medicare Insurance Helper Agent - LangGraph ReAct Agent with MCP
 
 [![CI](https://github.com/langchain-ai/react-agent/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/langchain-ai/react-agent/actions/workflows/unit-tests.yml)
 [![Integration Tests](https://github.com/langchain-ai/react-agent/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/langchain-ai/react-agent/actions/workflows/integration-tests.yml)
-[![Open in - LangGraph Studio](https://img.shields.io/badge/Open_in-LangGraph_Studio-00324d.svg?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4NS4zMzMiIGhlaWdodD0iODUuMzMzIiB2ZXJzaW9uPSIxLjAiIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHBhdGggZD0iTTEzIDcuOGMtNi4zIDMuMS03LjEgNi4zLTYuOCAyNS43LjQgMjQuNi4zIDI0LjUgMjUuOSAyNC41QzU3LjUgNTggNTggNTcuNSA1OCAzMi4zIDU4IDcuMyA1Ni43IDYgMzIgNmMtMTIuOCAwLTE2LjEuMy0xOSAxLjhtMzcuNiAxNi42YzIuOCAyLjggMy40IDQuMiAzLjQgNy42cy0uNiA0LjgtMy40IDcuNkw0Ny4yIDQzSDE2LjhsLTMuNC0zLjRjLTQuOC00LjgtNC44LTEwLjQgMC0xNS4ybDMuNC0zLjRoMzAuNHoiLz48cGF0aCBkPSJNMTguOSAyNS42Yy0xLjEgMS4zLTEgMS43LjQgMi41LjkuNiAxLjcgMS44IDEuNyAyLjcgMCAxIC43IDIuOCAxLjYgNC4xIDEuNCAxLjkgMS40IDIuNS4zIDMuMi0xIC42LS42LjkgMS40LjkgMS41IDAgMi43LS41IDIuNy0xIDAtLjYgMS4xLS44IDIuNi0uNGwyLjYuNy0xLjgtMi45Yy01LjktOS4zLTkuNC0xMi4zLTExLjUtOS44TTM5IDI2YzAgMS4xLS45IDIuNS0yIDMuMi0yLjQgMS41LTIuNiAzLjQtLjUgNC4yLjguMyAyIDEuNyAyLjUgMy4xLjYgMS41IDEuNCAyLjMgMiAyIDEuNS0uOSAxLjItMy41LS40LTMuNS0yLjEgMC0yLjgtMi44LS44LTMuMyAxLjYtLjQgMS42LS41IDAtLjYtMS4xLS4xLTEuNS0uNi0xLjItMS42LjctMS43IDMuMy0yLjEgMy41LS41LjEuNS4yIDEuNi4zIDIuMiAwIC43LjkgMS40IDEuOSAxLjYgMi4xLjQgMi4zLTIuMy4yLTMuMi0uOC0uMy0yLTEuNy0yLjUtMy4xLTEuMS0zLTMtMy4zLTMtLjUiLz48L3N2Zz4=)](https://langgraph-studio.vercel.app/templates/open?githubUrl=https://github.com/langchain-ai/react-agent)
 
-This template showcases a [ReAct agent](https://arxiv.org/abs/2210.03629) implemented using [LangGraph](https://github.com/langchain-ai/langgraph) and the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). The agent uses MCP servers to provide tools and capabilities through a unified gateway.
+This is a specialized [ReAct agent](https://arxiv.org/abs/2210.03629) built with [LangGraph](https://github.com/langchain-ai/langgraph) and the [Model Context Protocol (MCP)](https://modelcontextprotocol.io) to assist human agents with escalated Medicare insurance member conversations.
+
+## Overview
+
+The agent analyzes conversations between members and automated systems, then provides structured guidance to human agents on how to respond. It uses documentation (welcome call scripts, FAQs, response templates) to generate compliant, empathetic responses.
 
 ## Architecture
 
-The system consists of three main components:
+### Components
 
-1. **MCP Gateway Server**: A server that:
-   - Manages multiple MCP server processes
-   - Provides a unified API for accessing tools
-   - Handles communication with MCP servers
-   - Exposes tools through a simple HTTP interface
+1. **MCP Gateway Server**: Manages MCP server processes and provides unified tool access
+2. **File System MCP Server**: Provides access to documentation in the `docs/` directory
+3. **ReAct Agent**: Analyzes conversations and generates proposed responses
+4. **State Management Tools**: Local tools for reading/writing structured state
 
-2. **MCP Servers**: Individual servers that provide specific capabilities:
-   - Filesystem Server: File operations (read, write, list, search)
-   - Memory Server: Knowledge graph operations (entities, relations, queries)
-   - Additional servers can be added for more capabilities
+### State Structure
 
-3. **ReAct Agent**: The agent that:
-   - Connects to the MCP gateway
-   - Discovers available tools
-   - Uses tools to accomplish tasks
-   - Combines capabilities from multiple servers
+The agent uses a structured state system with:
+
+- **conversation_history**: Messages between member and automated system
+- **escalation_context**: Why escalated (reason, urgency, member sentiment)
+- **proposed_response**: Agent's suggested message with reasoning, tone, and references
+- **accessed_documents**: Tracking of documentation used
+
+### Available Tools
+
+#### State Management Tools (Local)
+- `get_conversation_history`: Retrieve the full conversation
+- `get_escalation_context`: Get escalation details
+- `set_proposed_response`: Set the final proposed message
+- `add_accessed_document`: Track documentation access
+
+#### Documentation Tools (via MCP)
+- File system access to `docs/` directory containing:
+  - `blueprint.md`: Welcome call campaign script
+  - `faq.md`: Common member questions and answers
+  - `samples.md`: Response templates for various scenarios
 
 ## Getting Started
 
@@ -41,9 +55,97 @@ pip install -e .
 cd ..
 ```
 
-### 2. Configure MCP Servers
+### 2. Start the Gateway Server
 
-The gateway server is configured through `gateway/config.json`. By default, it starts two MCP servers:
+```bash
+cd gateway
+python -m mcp_gateway.server
+```
+
+The server will start on port 8808 and provide access to the File System MCP server (pointing to the `docs/` directory).
+
+### 3. Use the Agent via LangGraph API
+
+The agent is invoked via the LangGraph API with a structured payload:
+
+```json
+{
+  "input": {
+    "messages": [
+      {
+        "content": "Please analyze this escalated conversation and provide guidance for the human agent.",
+        "type": "human"
+      }
+    ],
+    "conversation_history": [
+      {
+        "role": "member",
+        "content": "I haven't received my ID card yet",
+        "timestamp": "2025-01-20T10:00:00Z"
+      },
+      {
+        "role": "system",
+        "content": "Your card was mailed on January 5th",
+        "timestamp": "2025-01-20T10:00:30Z"
+      },
+      {
+        "role": "member",
+        "content": "That was 3 weeks ago! I need it now!",
+        "timestamp": "2025-01-20T10:01:00Z"
+      }
+    ],
+    "escalation_context": {
+      "reason": "member_frustrated",
+      "urgency": "high",
+      "member_sentiment": "frustrated"
+    }
+  },
+  "config": {
+    "tags": [],
+    "recursion_limit": 50,
+    "configurable": {}
+  },
+  "metadata": {},
+  "stream_mode": ["debug", "messages"],
+  "stream_subgraphs": true,
+  "assistant_id": "agent",
+  "interrupt_before": [],
+  "interrupt_after": [],
+  "multitask_strategy": "rollback"
+}
+```
+
+### 4. Response Format
+
+The agent returns a structured response in `state.proposed_response`:
+
+```json
+{
+  "message": "I understand your frustration, [Member Name]. I'm truly sorry about the delay with your ID card. Let me help you right away. I can see that your card was mailed on January 5th, which is longer than our typical delivery time. I'd like to offer you two immediate solutions: First, I can help you print a temporary ID card from our member website right now, which you can use immediately. Second, I'll request a replacement card to be sent via expedited shipping. Would you like me to walk you through printing the temporary card?",
+  
+  "reasoning": "Member is frustrated due to delayed ID card delivery beyond normal timeframe. Using empathetic opening from samples.md#apologies-to-members, acknowledging the delay, and offering immediate actionable solutions per blueprint.md#verify-plan-information. Providing both immediate (temporary card) and long-term (replacement) solutions to address urgency.",
+  
+  "suggested_tone": "empathetic_and_solution_focused",
+  
+  "relevant_docs": [
+    "samples.md#apologies-to-members",
+    "blueprint.md#verify-plan-information",
+    "faq.md#id-card-issues"
+  ],
+  
+  "key_points": [
+    "Acknowledge frustration and apologize for delay",
+    "Explain the situation (card mailed but delayed)",
+    "Offer immediate solution (temporary card)",
+    "Offer long-term solution (expedited replacement)",
+    "Provide clear next steps"
+  ]
+}
+```
+
+## Configuration
+
+### MCP Gateway (`gateway/config.json`)
 
 ```json
 {
@@ -54,7 +156,7 @@ The gateway server is configured through `gateway/config.json`. By default, it s
         "args": [
           "-y",
           "@modelcontextprotocol/server-filesystem",
-          "/path/to/directory"
+          "/Users/dan/code/ohl-agent/docs"
         ]
       },
       "memory": {
@@ -69,20 +171,7 @@ The gateway server is configured through `gateway/config.json`. By default, it s
 }
 ```
 
-You can add more servers from the [official MCP servers repository](https://github.com/modelcontextprotocol/servers).
-
-### 3. Start the Gateway Server
-
-```bash
-cd gateway
-python -m mcp_gateway.server
-```
-
-The server will start on port 8808 by default.
-
-### 4. Configure the Agent
-
-The agent's connection to the gateway is configured in `langgraph.json`:
+### Agent Configuration (`langgraph.json`)
 
 ```json
 {
@@ -97,45 +186,89 @@ The agent's connection to the gateway is configured in `langgraph.json`:
 }
 ```
 
-### 5. Use the Agent
+## Key Features
 
-Open your app in LangGraph!  Install guide [here](https://langchain-ai.github.io/langgraph/tutorials/langgraph-platform/local-server/#launch-langgraph-server).  
+### 1. Documentation-Driven Responses
+- Agent searches documentation for relevant guidance
+- References specific sections in its reasoning
+- Tracks which documents were accessed
 
-This will open a new browser window with the agent running.  The agent will automatically:
+### 2. Structured Input/Output
+- Clear separation between conversation history and escalation context
+- Structured output with message, reasoning, tone, and references
+- Easy integration with existing systems
+
+### 3. Compliance-Aware
+- System prompt emphasizes required disclaimers
+- Documentation includes compliance requirements
+- Agent trained to include necessary legal language
+
+### 4. State Injection Pattern
+- Tools use LangGraph's `InjectedState` and `InjectedToolCallId`
+- Returns `Command` objects for state updates
+- Clean separation between local and MCP tools
+
+## Customization
+
+### Adding New Documentation
+1. Add markdown files to the `docs/` directory
+2. The File System MCP server will automatically make them available
+3. Update the system prompt in `src/react_agent/prompts.py` to reference new documentation
+
+### Modifying Response Structure
+1. Update `ProposedResponse` dataclass in `src/react_agent/state.py`
+2. Update `set_proposed_response` tool in `src/react_agent/tools.py`
+3. Update system prompt to reflect new structure
+
+### Changing Documentation Location
+Update the filesystem server path in `gateway/config.json`:
+```json
+{
+  "mcp": {
+    "servers": {
+      "filesystem": {
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/new/path"]
+      }
+    }
+  }
+}
+```
+
+## Development
+
+### Running Tests
+
+```bash
+# Unit tests
+pytest tests/unit_tests/
+
+# Integration tests
+pytest tests/integration_tests/
+```
+
+### Local Development with LangGraph Studio
+
+Install LangGraph Studio ([guide](https://langchain-ai.github.io/langgraph/tutorials/langgraph-platform/local-server/#launch-langgraph-server)) and open this project. The agent will automatically:
 1. Connect to the local gateway server
 2. Discover available tools
 3. Make tools available for use in conversations
 
-## Available Tools
+## Troubleshooting
 
-The agent has access to tools from both MCP servers:
+### Tools Not Loading
+- Ensure MCP gateway is running on port 8808
+- Check `gateway/config.json` for correct paths
+- Review logs for tool initialization errors
 
-### Filesystem Tools
-- `read_file`: Read file contents
-- `write_file`: Create or update files
-- `list_directory`: List directory contents
-- `search_files`: Find files matching patterns
-- And more...
+### State Not Updating
+- Verify tools return `Command` objects
+- Check that `InjectedState` and `InjectedToolCallId` are properly annotated
+- Ensure state field names match between tools and state classes
 
-### Memory Tools
-- `create_entities`: Add entities to knowledge graph
-- `create_relations`: Link entities together
-- `search_nodes`: Query the knowledge graph
-- And more...
-
-## Development
-
-### Adding New MCP Servers
-
-1. Find a server in the [MCP servers repository](https://github.com/modelcontextprotocol/servers)
-2. Add its configuration to `gateway/config.json`
-3. The agent will automatically discover its tools
-
-### Customizing the Agent
-
-- Modify the system prompt in `src/react_agent/prompts.py`
-- Update the agent's reasoning in `src/react_agent/graph.py`
-- Add new capabilities by including more MCP servers
+### Documentation Not Accessible
+- Verify File System MCP server path in `gateway/config.json`
+- Check that docs directory exists and contains markdown files
+- Test MCP gateway directly: `curl http://localhost:8808/tools`
 
 ## Documentation
 
