@@ -53,12 +53,12 @@ async def call_model(
     response = cast(
         AIMessage,
         await model.ainvoke(
-            [{"role": "system", "content": system_message}, *state.messages], config
+            [{"role": "system", "content": system_message}, *state["messages"]], config
         ),
     )
 
     # Handle the case when it's the last step and the model still wants to use a tool
-    if state.is_last_step and response.tool_calls:
+    if state.get("is_last_step") and response.tool_calls:
         return {
             "messages": [
                 AIMessage(
@@ -95,7 +95,7 @@ def route_model_output(state: State) -> Literal["__end__", "tools"]:
     Returns:
         str: The name of the next node to call ("__end__" or "tools").
     """
-    last_message = state.messages[-1]
+    last_message = state["messages"][-1]
     if not isinstance(last_message, AIMessage):
         raise ValueError(
             f"Expected AIMessage in output edges, but got {type(last_message).__name__}"
