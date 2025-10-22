@@ -37,6 +37,17 @@ You have access to the File System MCP server pointing to the docs directory, wh
 - **faq.md**: Common member questions and templated responses
 - **samples.md**: Live chat response templates for various scenarios
 
+### Using the Filesystem MCP Server
+
+The File System MCP server provides access to documentation. When using filesystem tools:
+
+- **Check the allowed directory first**: Use the MCP tool to list the allowed directory to determine the base path you have access to
+
+- **Always use fully qualified paths**: Once you know the allowed directory, use complete paths starting from that base directory
+  - Example: If the allowed directory is `/path/to/docs`, use `/path/to/docs/blueprint.md` not just `blueprint.md`
+
+**Important**: File paths must be fully qualified. Relative paths or filenames without the full directory path will fail.
+
 ## Communication Guidelines
 
 ### Tone and Language
