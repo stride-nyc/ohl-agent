@@ -163,3 +163,10 @@ cython_debug/
 #.idea/
 
 .langgraph_api
+
+# the MCP docs
+*docs
+
+# Claude code
+.claude
+.claudeignore
