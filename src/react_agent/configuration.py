@@ -39,6 +39,29 @@ class Configuration:
         },
     )
 
+    azure_endpoint: str | None = field(
+        default=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        metadata={
+            "description": "Azure OpenAI endpoint URL (e.g., https://your-resource.openai.azure.com/). "
+            "Required when using Azure OpenAI models."
+        },
+    )
+
+    azure_api_version: str = field(
+        default=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+        metadata={
+            "description": "Azure OpenAI API version. Defaults to 2024-02-15-preview if not specified."
+        },
+    )
+
+    azure_deployment: str | None = field(
+        default=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
+        metadata={
+            "description": "Azure OpenAI deployment name. Can be specified in LLM_MODEL as azure/deployment-name "
+            "or set here as a default."
+        },
+    )
+
     mcp_gateway_url: str = field(
         default="http://localhost:8808",
         metadata={

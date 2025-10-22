@@ -41,7 +41,10 @@ async def call_model(
     # Initialize the model with tool binding. Change the model or add more tools here.
     model = load_chat_model(
         configuration.model,
-        configuration.openrouter_base_url
+        openrouter_base_url=configuration.openrouter_base_url,
+        azure_endpoint=configuration.azure_endpoint,
+        azure_api_version=configuration.azure_api_version,
+        azure_deployment=configuration.azure_deployment
     ).bind_tools(TOOLS)
 
     # Format the system prompt. Customize this to change the agent's behavior.
