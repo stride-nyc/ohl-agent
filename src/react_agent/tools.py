@@ -117,21 +117,22 @@ def _create_tool_wrapper(tool_def: Dict[str, Any]) -> BaseTool:
     return tool
 
 
-# State management tools
+# Consolidated state management tools
 
 @tool
-def get_conversation_history(
+def retrieve_context(
     tool_call_id: Annotated[str, InjectedToolCallId],
     state: Annotated[Dict, InjectedState]
 ) -> Command[Literal["call_model"]]:
-    """Get the current conversation history between member and automated system.
+    """Retrieve all context needed to craft a response in a single call.
     
-    Returns the conversation formatted for review.
+    Returns conversation history, escalation context, and confirms preloaded documentation
+    is available in the system prompt.
     """
+    # Format conversation history
     history = state.get("conversation_history", [])
-    
     if not history:
-        content = "No conversation history available."
+        history_content = "No conversation history available."
     else:
         formatted = []
         for msg in history:
@@ -140,41 +141,37 @@ def get_conversation_history(
             timestamp = msg.get("timestamp", "")
             time_str = f" [{timestamp}]" if timestamp else ""
             formatted.append(f"{role}{time_str}: {content_text}")
-        content = "\n\n".join(formatted)
+        history_content = "\n\n".join(formatted)
     
-    return Command(
-        update={
-            "messages": [ToolMessage(
-                content=f"Conversation History:\n\n{content}",
-                tool_call_id=tool_call_id
-            )]
-        }
-    )
-
-
-@tool
-def get_escalation_context(
-    tool_call_id: Annotated[str, InjectedToolCallId],
-    state: Annotated[Dict, InjectedState]
-) -> Command[Literal["call_model"]]:
-    """Get the escalation context including reason, urgency, and member sentiment.
-    
-    Returns information about why this conversation was escalated.
-    """
+    # Format escalation context
     context = state.get("escalation_context")
-    
     if not context:
-        content = "No escalation context available."
+        context_content = "No escalation context available."
     else:
-        content = f"""Escalation Context:
-- Reason: {context.get('reason', 'Not specified')}
+        context_content = f"""- Reason: {context.get('reason', 'Not specified')}
 - Urgency: {context.get('urgency', 'Not specified')}
 - Member Sentiment: {context.get('member_sentiment', 'Not specified')}"""
     
+    # Combine all context
+    full_context = f"""# RETRIEVED CONTEXT
+
+## Conversation History
+
+{history_content}
+
+## Escalation Context
+
+{context_content}
+
+## Preloaded Documentation
+
+All documentation (blueprint.md, faq.md, samples.md) has been preloaded in your system prompt above. 
+Use this documentation to craft your response with verbatim language whenever possible."""
+    
     return Command(
         update={
             "messages": [ToolMessage(
-                content=content,
+                content=full_context,
                 tool_call_id=tool_call_id
             )]
         }
@@ -182,7 +179,7 @@ def get_escalation_context(
 
 
 @tool
-def set_proposed_response(
+def submit_response(
     message: str,
     reasoning: str,
     suggested_tone: str,
@@ -191,11 +188,13 @@ def set_proposed_response(
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
     state: Annotated[Dict, InjectedState] = None
 ) -> Command[Literal["call_model"]]:
-    """Set the proposed response that the human agent should send to the member.
+    """Submit the final proposed response for the human agent.
+    
+    This consolidates setting the proposed response and tracking accessed documents.
     
     Args:
-        message: The exact text the agent should send to the member
-        reasoning: Explanation of why this approach was chosen
+        message: The exact text the agent should send to the member (use verbatim language from docs)
+        reasoning: Explanation of why this approach was chosen and which documentation was used
         suggested_tone: The tone to use (e.g., 'empathetic', 'professional', 'apologetic')
         relevant_docs: Comma-separated list of documentation references (e.g., 'samples.md#apologies, faq.md#pharmacy')
         key_points: Comma-separated list of key points to cover
@@ -215,44 +214,16 @@ def set_proposed_response(
         "key_points": points_list
     }
     
+    # Track accessed documents
+    current_docs = state.get("accessed_documents", [])
+    updated_docs = list(set(current_docs + docs_list))  # Merge and deduplicate
+    
     return Command(
         update={
             "proposed_response": proposed_response,
-            "messages": [ToolMessage(
-                content=f"Proposed response set successfully.\n\nMessage preview: {message[:100]}{'...' if len(message) > 100 else ''}\nTone: {suggested_tone}\nKey points: {len(points_list)}",
-                tool_call_id=tool_call_id
-            )]
-        }
-    )
-
-
-@tool
-def add_accessed_document(
-    doc_reference: str,
-    tool_call_id: Annotated[str, InjectedToolCallId],
-    state: Annotated[Dict, InjectedState]
-) -> Command[Literal["call_model"]]:
-    """Track that a documentation file was accessed during reasoning.
-    
-    Args:
-        doc_reference: Reference to the document (e.g., 'blueprint.md', 'faq.md#pharmacy')
-    
-    Returns:
-        Confirmation message
-    """
-    current_docs = state.get("accessed_documents", [])
-    
-    # Add if not already tracked
-    if doc_reference not in current_docs:
-        updated_docs = current_docs + [doc_reference]
-    else:
-        updated_docs = current_docs
-    
-    return Command(
-        update={
             "accessed_documents": updated_docs,
             "messages": [ToolMessage(
-                content=f"Tracked access to: {doc_reference}",
+                content=f"Response submitted successfully.\n\nMessage preview: {message[:100]}{'...' if len(message) > 100 else ''}\nTone: {suggested_tone}\nKey points: {len(points_list)}\nDocuments referenced: {len(docs_list)}",
                 tool_call_id=tool_call_id
             )]
         }
@@ -300,12 +271,10 @@ async def initialize_tools(config) -> List[BaseTool]:
     
     logger.info("Initializing tools")
     
-    # Local state management tools
+    # Local state management tools (consolidated from 4 to 2)
     local_tools = [
-        get_conversation_history,
-        get_escalation_context,
-        set_proposed_response,
-        add_accessed_document
+        retrieve_context,
+        submit_response
     ]
     
     # Configure MCP client with gateway URL from config
