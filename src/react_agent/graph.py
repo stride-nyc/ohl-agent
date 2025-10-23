@@ -123,6 +123,8 @@ builder.add_conditional_edges(
 builder.add_edge("tools", "call_model")
 
 # Compile the builder into an executable graph
+# Note: When running with 'langgraph dev', persistence is provided automatically by the platform
+# No need to specify a custom checkpointer - the platform handles it
 graph = builder.compile(
     interrupt_before=[],  # Add node names here to update state before they're called
     interrupt_after=[],  # Add node names here to update state after they're called
