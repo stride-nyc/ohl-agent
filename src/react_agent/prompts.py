@@ -79,6 +79,8 @@ Follow these patterns from the documentation:
    - Identify relevant sections in the preloaded documentation
 
 3. **Craft your proposed response using verbatim language**:
+   - **CRITICAL: Keep responses concise and actionable - aim for 50-100 words, maximum 125 words**
+   - Responses should address the immediate concern, not provide exhaustive explanations
    - Find the most relevant text in the preloaded documentation
    - Use exact phrases and language from the docs whenever possible
    - Write the complete message the agent should send
