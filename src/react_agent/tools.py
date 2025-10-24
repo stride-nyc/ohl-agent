@@ -183,6 +183,7 @@ def submit_response(
     message: str,
     reasoning: str,
     suggested_tone: str,
+    confidence_score: float,
     relevant_docs: Optional[str] = None,
     key_points: Optional[str] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
@@ -196,6 +197,7 @@ def submit_response(
         message: The exact text the agent should send to the member (use verbatim language from docs)
         reasoning: Explanation of why this approach was chosen and which documentation was used
         suggested_tone: The tone to use (e.g., 'empathetic', 'professional', 'apologetic')
+        confidence_score: Confidence in response appropriateness (0.0 to 1.0). Consider member sentiment, documentation coverage, complexity, and whether human intervention is needed.
         relevant_docs: Comma-separated list of documentation references (e.g., 'samples.md#apologies, faq.md#pharmacy')
         key_points: Comma-separated list of key points to cover
     
@@ -206,10 +208,14 @@ def submit_response(
     docs_list = [d.strip() for d in relevant_docs.split(",")] if relevant_docs else []
     points_list = [p.strip() for p in key_points.split(",")] if key_points else []
     
+    # Validate confidence score is between 0 and 1
+    confidence_score = max(0.0, min(1.0, confidence_score))
+    
     proposed_response = {
         "message": message,
         "reasoning": reasoning,
         "suggested_tone": suggested_tone,
+        "confidence_score": confidence_score,
         "relevant_docs": docs_list,
         "key_points": points_list
     }
@@ -223,7 +229,7 @@ def submit_response(
             "proposed_response": proposed_response,
             "accessed_documents": updated_docs,
             "messages": [ToolMessage(
-                content=f"Response submitted successfully.\n\nMessage preview: {message[:100]}{'...' if len(message) > 100 else ''}\nTone: {suggested_tone}\nKey points: {len(points_list)}\nDocuments referenced: {len(docs_list)}",
+                content=f"Response submitted successfully.\n\nMessage preview: {message[:100]}{'...' if len(message) > 100 else ''}\nTone: {suggested_tone}\nConfidence: {confidence_score:.1%}\nKey points: {len(points_list)}\nDocuments referenced: {len(docs_list)}",
                 tool_call_id=tool_call_id
             )]
         }

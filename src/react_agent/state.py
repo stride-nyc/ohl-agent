@@ -38,6 +38,7 @@ class ProposedResponse:
     message: str
     reasoning: str
     suggested_tone: str  # empathetic, professional, apologetic, etc.
+    confidence_score: float  # 0.0 to 1.0, representing confidence in response appropriateness
     relevant_docs: List[str] = field(default_factory=list)
     key_points: List[str] = field(default_factory=list)
 

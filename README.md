@@ -575,6 +575,8 @@ The agent returns a structured response in `state.proposed_response`:
   
   "suggested_tone": "empathetic_and_solution_focused",
   
+  "confidence_score": 0.7,
+  
   "relevant_docs": [
     "samples.md#apologies-to-members",
     "blueprint.md#verify-plan-information",
@@ -590,6 +592,21 @@ The agent returns a structured response in `state.proposed_response`:
   ]
 }
 ```
+
+#### Confidence Score
+
+The `confidence_score` field (0.0 to 1.0) represents the agent's confidence that the proposed response is appropriate and likely to resolve the member's issue. The UX can use this to determine when human review is most needed:
+
+- **0.8 - 1.0 (High)**: Clear question with direct documentation match, positive sentiment
+- **0.5 - 0.8 (Medium)**: Some complexity or minor documentation gaps, manageable sentiment
+- **0.3 - 0.5 (Low)**: Significant complexity, member frustration, likely needs human intervention
+- **0.0 - 0.3 (Very Low)**: Explicit request for human agent, high agitation, requires immediate escalation
+
+**Factors that lower confidence:**
+- Member agitation or explicit request for human agent (major impact)
+- Documentation gaps or need for inferences (moderate impact)
+- Complex multi-step resolution required (moderate impact)
+- Ambiguity in member's request (moderate impact)
 
 ## Configuration
 
