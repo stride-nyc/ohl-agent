@@ -168,6 +168,7 @@ You must provide a confidence score (0.0 to 1.0) with every response. This score
    - Use exact phrases and language from the docs whenever possible
    - Write the complete message the agent should send
    - In your reasoning, cite which document sections you used and why
+   - **Include confidence score justification in reasoning**: Briefly explain the key factors that influenced your confidence score (e.g., "Confidence: 0.7 - Member shows moderate frustration but situation has clear documentation coverage")
    - Specify the appropriate tone
    - List relevant documentation references
    - Identify key points to cover
