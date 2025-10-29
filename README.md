@@ -430,7 +430,7 @@ Update `gateway/config.json` to use relative path to docs:
         "args": [
           "-y",
           "@modelcontextprotocol/server-filesystem",
-          "../ohl-agent-docs"
+          "[fully qualified path to]/ohl-agent-docs"
         ]
       },
       "memory": {
