@@ -164,9 +164,8 @@ cython_debug/
 
 .langgraph_api
 
-# the MCP docs
-*docs
-
 # Claude code
 .claude
 .claudeignore
+
+**/config.json
