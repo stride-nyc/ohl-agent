@@ -151,7 +151,41 @@ def retrieve_context(
         context_content = f"""- Reason: {context.get('reason', 'Not specified')}
 - Urgency: {context.get('urgency', 'Not specified')}
 - Member Sentiment: {context.get('member_sentiment', 'Not specified')}"""
-    
+
+    # Format patient data
+    patient_data = state.get("patient_data")
+    if not patient_data:
+        patient_content = "No patient data available."
+    else:
+        # Handle both dict and PatientData object
+        if isinstance(patient_data, dict):
+            name = patient_data.get('name', 'Not specified')
+            member_id = patient_data.get('member_id', 'Not specified')
+            dob = patient_data.get('dob', 'Not specified')
+            zip_code = patient_data.get('zip', 'Not specified')
+            address = patient_data.get('address', 'Not specified')
+            insurance = patient_data.get('insurance', 'Not specified')
+            pcp = patient_data.get('pcp', 'Not specified')
+            phone = patient_data.get('phone', 'Not specified')
+        else:
+            name = getattr(patient_data, 'name', 'Not specified')
+            member_id = getattr(patient_data, 'member_id', 'Not specified')
+            dob = getattr(patient_data, 'dob', 'Not specified')
+            zip_code = getattr(patient_data, 'zip', 'Not specified')
+            address = getattr(patient_data, 'address', 'Not specified')
+            insurance = getattr(patient_data, 'insurance', 'Not specified')
+            pcp = getattr(patient_data, 'pcp', 'Not specified')
+            phone = getattr(patient_data, 'phone', 'Not specified')
+
+        patient_content = f"""- Name: {name}
+- Member ID: {member_id}
+- DOB: {dob}
+- ZIP Code: {zip_code}
+- Address: {address}
+- Insurance: {insurance}
+- Primary Care Provider: {pcp}
+- Phone: {phone}"""
+
     # Combine all context
     full_context = f"""# RETRIEVED CONTEXT
 
@@ -163,9 +197,15 @@ def retrieve_context(
 
 {context_content}
 
+## Patient Data
+
+{patient_content}
+
+**IMPORTANT**: Use the patient data above when crafting responses. Do NOT ask for information already available here (especially ZIP code, name, or address).
+
 ## Preloaded Documentation
 
-All documentation (blueprint.md, faq.md, samples.md) has been preloaded in your system prompt above. 
+All documentation (blueprint.md, faq.md, samples.md) has been preloaded in your system prompt above.
 Use this documentation to craft your response with verbatim language whenever possible."""
     
     return Command(

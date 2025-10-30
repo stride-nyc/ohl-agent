@@ -33,6 +33,20 @@ class EscalationContext:
 
 
 @dataclass
+class PatientData:
+    """Patient/member information for context."""
+    name: Optional[str] = None
+    mrn: Optional[str] = None
+    member_id: Optional[str] = None
+    dob: Optional[str] = None
+    phone: Optional[str] = None
+    insurance: Optional[str] = None
+    zip: Optional[str] = None
+    address: Optional[str] = None
+    pcp: Optional[str] = None
+
+
+@dataclass
 class ProposedResponse:
     """The agent's proposed next message for the human agent."""
     message: str
@@ -45,16 +59,18 @@ class ProposedResponse:
 
 class InputState(MessagesState):
     """Defines the input state for the agent, inheriting from MessagesState.
-    
+
     This class represents the narrower interface to the outside world.
     """
-    
+
     conversation_history: List[ConversationMessage] = field(
         default_factory=list,
         metadata={"description": "The conversation between member and automated system"}
     )
-    
+
     escalation_context: Optional[EscalationContext] = None
+
+    patient_data: Optional[PatientData] = None
 
 
 class State(InputState):

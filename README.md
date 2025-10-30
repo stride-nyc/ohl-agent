@@ -78,7 +78,7 @@ langgraph dev
 cd gateway && python3 -m mcp_gateway.server
   ├─> Loads gateway/config.json
   ├─> Spawns MCP server subprocesses
-  │   ├─> npx @modelcontextprotocol/server-filesystem ../ohl-agent-docs
+  │   ├─> npx @modelcontextprotocol/server-filesystem ../docs
   │   └─> npx @modelcontextprotocol/server-memory
   └─> Listens on port 8808 for tool requests
 ```
@@ -370,9 +370,8 @@ The MCP gateway needs access to documentation. Create a directory at the same le
 ```bash
 # From the project root
 cd ..
-mkdir ohl-agent-docs
+mkdir docs
 # Add your documentation files (blueprint.md, faq.md, samples.md) to this directory
-cd ohl-agent
 ```
 
 ### 3. Install Dependencies
@@ -419,7 +418,7 @@ cd ..
 
 ### 4. Configure Gateway
 
-Update `gateway/config.json` to use relative path to docs:
+Update `gateway/config.json` to configure MCP servers:
 
 ```json
 {
@@ -430,7 +429,7 @@ Update `gateway/config.json` to use relative path to docs:
         "args": [
           "-y",
           "@modelcontextprotocol/server-filesystem",
-          "[fully qualified path to]/ohl-agent-docs"
+          "[fully qualified path to]/docs"
         ]
       },
       "memory": {
@@ -444,6 +443,94 @@ Update `gateway/config.json` to use relative path to docs:
   }
 }
 ```
+
+#### MCP Server Requirements
+
+The agent uses MCP servers to access external resources. Here's what each server provides:
+
+**1. File System Server** (Required)
+- **Purpose**: Access to documentation files (blueprint.md, faq.md, samples.md)
+- **Path Configuration**: Must point to a directory containing your documentation files
+- **Example**: `"/Users/username/docs"`
+- **What to include**:
+  - `blueprint.md` - Welcome call scripts and talking points
+  - `faq.md` - Common questions and answers
+  - `samples.md` - Response templates and examples
+
+**2. Memory Server** (Optional)
+- **Purpose**: Stateful memory across conversations
+- **Use case**: Remembering context from previous interactions
+- **Note**: This is separate from LangGraph's built-in thread persistence
+
+**3. Provider Search (Optional - Advanced Feature)**
+
+If you want the agent to search and recommend medical providers, you need to:
+
+**A. Prepare Provider Data:**
+- Create a `providers/` subdirectory in your filesystem MCP path
+- Add provider CSV files organized by specialty (e.g., `radiology.csv`, `cardiology.csv`)
+- CSV files must include these columns:
+  - `organization_name` - Provider/facility name
+  - `address_1`, `city`, `state`, `postal_code` - Full address
+  - `telephone_number` - Contact phone
+  - `taxonomy_desc` - Provider specialty/type
+
+**Example CSV structure:**
+```csv
+organization_name,address_1,city,state,postal_code,telephone_number,taxonomy_desc
+Mandell & Blau Radiology,140 Main St,Middletown,CT,06457,860-346-7400,Diagnostic Radiology
+Stamford Radiological Associates,76 Progress Dr,Stamford,CT,06902,203-359-0130,Diagnostic Radiology
+```
+
+**B. Update Gateway Config:**
+```json
+{
+  "mcp": {
+    "servers": {
+      "filesystem": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "/path/to/your/data"
+        ]
+      }
+    }
+  }
+}
+```
+
+Where `/path/to/your/data` contains:
+```
+/path/to/your/data/
+├── blueprint.md
+├── faq.md
+├── samples.md
+└── providers/
+    ├── radiology.csv
+    ├── cardiology.csv
+    └── primary_care.csv
+```
+
+**C. How Provider Search Works:**
+
+When a member needs a provider:
+1. Agent receives `patient_data` with member's ZIP code
+2. Agent uses MCP filesystem tools to:
+   - List files in `providers/` directory
+   - Read relevant specialty CSV files
+   - Parse provider data
+3. Agent estimates distance from member's ZIP code:
+   - Same ZIP prefix (first 3 digits) = ~10-15 miles
+   - Same city = ~20 miles
+   - Same state = ~20-50 miles
+4. Agent recommends 3-5 closest providers with contact info
+
+**Important Notes:**
+- Provider search requires **real provider data** - the agent cannot generate fake providers
+- Without provider CSV files, the agent will refer members to the plan's provider directory website
+- Distance calculations are estimates based on ZIP code proximity, not precise GPS coordinates
+- The agent will remind members to verify network status and call ahead
 
 ### 5. Start the Servers
 
