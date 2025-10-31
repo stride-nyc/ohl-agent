@@ -93,7 +93,7 @@ class Configuration:
             raise FileNotFoundError("Could not find langgraph.json")
 
         # Load and parse the config file
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             config_data = json.load(f)
 
         # Create configuration instance
