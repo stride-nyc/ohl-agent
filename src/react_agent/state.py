@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
 from enum import Enum
+from typing import List, Optional
 
 from langgraph.graph import MessagesState
 
@@ -33,6 +33,22 @@ class EscalationContext:
 
 
 @dataclass
+class ServiceCoverage:
+    """Coverage details for a specific service type."""
+    in_network_copay_non_hospital: Optional[str] = None
+    in_network_copay_hospital: Optional[str] = None
+    out_of_network_coinsurance: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@dataclass
+class PlanCoverage:
+    """Plan coverage details for various service types."""
+    diagnostic_radiology: Optional[ServiceCoverage] = None
+    # Can extend with other service types as needed
+
+
+@dataclass
 class PatientData:
     """Patient/member information for context."""
     name: Optional[str] = None
@@ -40,10 +56,14 @@ class PatientData:
     member_id: Optional[str] = None
     dob: Optional[str] = None
     phone: Optional[str] = None
+    email: Optional[str] = None
     insurance: Optional[str] = None
     zip: Optional[str] = None
     address: Optional[str] = None
     pcp: Optional[str] = None
+    plan_name: Optional[str] = None
+    plan_type: Optional[str] = None
+    coverage: Optional[PlanCoverage] = None
 
 
 @dataclass
