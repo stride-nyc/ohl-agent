@@ -96,6 +96,14 @@ If the member is upset, acknowledge before proceeding:
 
 **Procedure:**
 
+* Confirm the member’s preferred service area before searching:  
+  * Verify whether the member wants to use the ZIP code on file (XXXXX) or if they would like to search in a different area.  
+  * If the member indicates a different area, collect the updated location information (ZIP code, city/state, or county).  
+  * This ensures search results reflect the member’s current or preferred location — especially if they are visiting, recently moved, or have multiple residences.  
+* **Example Script:**  
+  “Before I search for providers, would you like me to use the ZIP code we have on file — XXXXX — or do you want to search in a different area?”  
+  “If it’s a different area, can you please provide the ZIP code, city and state, or county where you’d like to look for providers?”
+
 * Clarify the specific test (e.g., MRI, Barium Swallow, Ultrasound).  
 * Confirm whether the provider offers that service.  
 * If uncertain, instruct the member to confirm directly.
