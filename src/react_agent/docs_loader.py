@@ -46,7 +46,7 @@ def load_documentation(docs_dir: Optional[str] = None) -> str:
             continue
 
         try:
-            with open(doc_path, 'r', encoding='utf-8') as f:
+            with open(doc_path, encoding='utf-8') as f:
                 content = f.read()
                 # Escape curly braces for Python's .format() method
                 # This prevents markdown heading anchors like {#greetings:} from being interpreted as format placeholders

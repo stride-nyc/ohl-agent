@@ -3,15 +3,13 @@
 Tools are dynamically loaded from MCP servers through the gateway.
 """
 
-import asyncio
-import inspect
 import json
 import logging
-from typing import Any, Callable, Dict, List, Literal, Optional, Set, Type, Annotated
+from typing import Annotated, Any, Dict, List, Literal, Optional, Type
 
-from langchain_core.tools import BaseTool, Tool, StructuredTool, tool
-from langchain_core.tools.base import InjectedToolCallId
 from langchain_core.messages import ToolMessage
+from langchain_core.tools import BaseTool, StructuredTool, Tool, tool
+from langchain_core.tools.base import InjectedToolCallId
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 from pydantic import BaseModel, create_model
@@ -69,7 +67,7 @@ def _create_tool_wrapper(tool_def: Dict[str, Any]) -> BaseTool:
         A LangChain Tool
     """
     async def wrapper(*args, **kwargs) -> Any:
-        """Wrapper function that calls the MCP tool."""
+        """Call the MCP tool with provided arguments."""
         # Convert args to kwargs if needed
         if args:
             logger.info(f"Converting args to kwargs: {args}")
@@ -167,6 +165,10 @@ def retrieve_context(
             insurance = patient_data.get('insurance', 'Not specified')
             pcp = patient_data.get('pcp', 'Not specified')
             phone = patient_data.get('phone', 'Not specified')
+            email = patient_data.get('email', 'Not specified')
+            plan_name = patient_data.get('plan_name', 'Not specified')
+            plan_type = patient_data.get('plan_type', 'Not specified')
+            coverage = patient_data.get('coverage')
         else:
             name = getattr(patient_data, 'name', 'Not specified')
             member_id = getattr(patient_data, 'member_id', 'Not specified')
@@ -176,6 +178,10 @@ def retrieve_context(
             insurance = getattr(patient_data, 'insurance', 'Not specified')
             pcp = getattr(patient_data, 'pcp', 'Not specified')
             phone = getattr(patient_data, 'phone', 'Not specified')
+            email = getattr(patient_data, 'email', 'Not specified')
+            plan_name = getattr(patient_data, 'plan_name', 'Not specified')
+            plan_type = getattr(patient_data, 'plan_type', 'Not specified')
+            coverage = getattr(patient_data, 'coverage', None)
 
         patient_content = f"""- Name: {name}
 - Member ID: {member_id}
@@ -184,7 +190,41 @@ def retrieve_context(
 - Address: {address}
 - Insurance: {insurance}
 - Primary Care Provider: {pcp}
-- Phone: {phone}"""
+- Phone: {phone}
+- Email: {email}
+- Plan Name: {plan_name}
+- Plan Type: {plan_type}"""
+
+        # Add coverage information if available
+        if coverage:
+            patient_content += "\n\n### Plan Coverage Details\n"
+
+            # Handle both dict and object access
+            if isinstance(coverage, dict):
+                diag_radiology = coverage.get('diagnostic_radiology')
+            else:
+                diag_radiology = getattr(coverage, 'diagnostic_radiology', None)
+
+            if diag_radiology:
+                patient_content += "\n**Diagnostic Radiology:**\n"
+
+                # Handle both dict and object access for service coverage
+                if isinstance(diag_radiology, dict):
+                    in_network_non_hosp = diag_radiology.get('in_network_copay_non_hospital', 'Not specified')
+                    in_network_hosp = diag_radiology.get('in_network_copay_hospital', 'Not specified')
+                    out_network = diag_radiology.get('out_of_network_coinsurance', 'Not specified')
+                    notes = diag_radiology.get('notes', '')
+                else:
+                    in_network_non_hosp = getattr(diag_radiology, 'in_network_copay_non_hospital', 'Not specified')
+                    in_network_hosp = getattr(diag_radiology, 'in_network_copay_hospital', 'Not specified')
+                    out_network = getattr(diag_radiology, 'out_of_network_coinsurance', 'Not specified')
+                    notes = getattr(diag_radiology, 'notes', '')
+
+                patient_content += f"- In-Network (non-hospital): {in_network_non_hosp} copay\n"
+                patient_content += f"- In-Network (hospital): {in_network_hosp} copay\n"
+                patient_content += f"- Out-of-Network: {out_network} coinsurance\n"
+                if notes:
+                    patient_content += f"- Notes: {notes}\n"
 
     # Combine all context
     full_context = f"""# RETRIEVED CONTEXT
